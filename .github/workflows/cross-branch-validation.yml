@@ -1,5 +1,6 @@
 name: Exact profile payment validation
 on:
+  workflow_dispatch:
   push:
     branches: [validation/profile-payments-97245f2c]
 permissions:
