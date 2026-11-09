@@ -30,6 +30,9 @@ const files = listModels(root, selected);
 // exception explicit; ordinary stages retain their limits.
 const verificationTimeouts = {
   "formal/models/ui/ui_submitted_payment_recovery.qnt": 600_000,
+  // The unchanged Solana pending-payment graph completed in 326s with two
+  // TLC workers. Keep its finite domain intact and bound the extra time here.
+  "formal/models/ui/ui_solana_payment_pending.qnt": 900_000,
   // The journal's unchanged finite domain exceeds the ordinary three-minute
   // budget. Keep a bounded, model-specific allowance for its reviewed view.
   "formal/models/payments/direct_bounty_journal.qnt": 1_800_000,
