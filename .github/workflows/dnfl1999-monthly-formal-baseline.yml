@@ -26,7 +26,6 @@ jobs:
     env:
       CANDIDATE_SHA: ${{ matrix.revision }}
       MODELS: ${{ matrix.models }}
-      QUINT_HOME: ${{ runner.temp }}/dnfl1999-quint
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -37,6 +36,7 @@ jobs:
       - name: Bind verification to the candidate
         run: |
           test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          printf 'QUINT_HOME=%s/dnfl1999-quint\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
           uname -a
           git rev-parse HEAD
           git status --short
