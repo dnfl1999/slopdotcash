@@ -26,6 +26,7 @@ jobs:
     env:
       CANDIDATE_SHA: ${{ matrix.revision }}
       MODELS: ${{ matrix.models }}
+      QUINT_HOME: ${{ runner.temp }}/dnfl1999-quint
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -62,7 +63,17 @@ jobs:
           printf '%s\n' 'PyYAML==6.0.3 --hash=sha256:0f29edc409a6392443abf94b9cf89ce99889a1dd5376d94316ae5145dfedd5d6' > "$RUNNER_TEMP/slop-python-requirements.txt"
           python -m pip install --disable-pip-version-check --require-hashes --requirement "$RUNNER_TEMP/slop-python-requirements.txt"
           git diff --exit-code
-      - name: Diagnose and verify the pinned translator distribution
+      - name: Download the checksum-pinned official translator with GitHub CLI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |-
+          archive_dir="$RUNNER_TEMP/dnfl1999-apalache-release"
+          mkdir "$archive_dir"
+          gh release download v0.62.4 --repo apalache-mc/apalache --pattern apalache.tgz --dir "$archive_dir"
+          printf '%s  %s\n' '8ac8488422c30d552735bae11b92a2d014d8e02e8608702acc08f9a2d8a9abb2' "$archive_dir/apalache.tgz" | sha256sum --check
+          mkdir -p "$QUINT_HOME/apalache-dist-0.62.4"
+          tar -xzf "$archive_dir/apalache.tgz" -C "$QUINT_HOME/apalache-dist-0.62.4"
+      - name: Verify the pinned translator distribution
         run: |-
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
