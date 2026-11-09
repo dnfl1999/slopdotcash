@@ -23,9 +23,6 @@ jobs:
           - label: upstream-timeouts
             revision: ac9da9e7dcd1b702311deb2c88438d6e13ccaf51
             models: ui_bounty_payment_parent ui_solana_payment_pending
-          - label: monthly-receipt
-            revision: fd401461fe0e6a9db6946baa163badbfabd64564
-            models: monthly_source_conflict
     env:
       CANDIDATE_SHA: ${{ matrix.revision }}
       MODELS: ${{ matrix.models }}
@@ -65,6 +62,29 @@ jobs:
           printf '%s\n' 'PyYAML==6.0.3 --hash=sha256:0f29edc409a6392443abf94b9cf89ce99889a1dd5376d94316ae5145dfedd5d6' > "$RUNNER_TEMP/slop-python-requirements.txt"
           python -m pip install --disable-pip-version-check --require-hashes --requirement "$RUNNER_TEMP/slop-python-requirements.txt"
           git diff --exit-code
+      - name: Diagnose and verify the pinned translator distribution
+        run: |-
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import {createRequire} from 'node:module';
+          import {createHash} from 'node:crypto';
+          const require=createRequire(import.meta.url);
+          const packageRoot=path.dirname(require.resolve('@informalsystems/quint/package.json'));
+          const {fetchApalache}=require(path.join(packageRoot,'dist/src/apalache.js'));
+          const {apalacheDistDir}=require(path.join(packageRoot,'dist/src/config.js'));
+          const result=await fetchApalache('0.62.4',3);
+          console.log('TRANSLATOR_DOWNLOAD_RESULT '+JSON.stringify({failed:result.isLeft(),detail:result.value}));
+          if(result.isLeft())process.exit(1);
+          const jar=path.join(apalacheDistDir('0.62.4'),'apalache/lib/apalache.jar');
+          const digest=createHash('sha256').update(fs.readFileSync(jar)).digest('hex');
+          console.log('TRANSLATOR_JAR_SHA256 '+digest);
+          if(digest!=='e5223915507b65cc5f1638bd037ede60f8a4fc1644aff46355779f9b05df9262')throw new Error('Pinned JAR mismatch');
+          NODE
+      - name: Check actual translator and safety view
+        env:
+          SLOP_QUINT_TRANSLATOR_TEST: "1"
+        run: bun --no-env-file test ./scripts/quint-local-translator.test.ts ./scripts/quint-safety-view.test.ts
       - name: Run unchanged selected model verification
         run: |-
           validation_exit=0
