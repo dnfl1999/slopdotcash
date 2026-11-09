@@ -1,0 +1,228 @@
+name: dnfl1999 monthly candidate Linux QA
+on:
+  push:
+    branches: [validation/monthly-linux-20261109-02]
+permissions:
+  contents: read
+concurrency:
+  group: dnfl1999-monthly-linux-${{ github.ref }}
+  cancel-in-progress: false
+env:
+  CI: "true"
+  CANDIDATE_SHA: fd401461fe0e6a9db6946baa163badbfabd64564
+  SLOP_PROFILES_INPUT: data/profiles/seed.json
+  SLOP_POINTS_ONLINE: "0"
+  SLOP_POINTS_BOOTSTRAP: "1"
+  VITE_SLOP_ENVIRONMENT: production
+  WRANGLER_SEND_METRICS: "false"
+jobs:
+  source:
+    if: github.repository == 'dnfl1999/slopdotcash'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fd401461fe0e6a9db6946baa163badbfabd64564
+          fetch-depth: 0
+          persist-credentials: false
+          submodules: false
+      - name: Bind verification to the candidate
+        run: |
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          uname -a
+          git rev-parse HEAD
+          git status --short
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "24.15.0"
+          package-manager-cache: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: "1.3.14"
+      - name: Install pinned dependencies
+        run: |
+          test "$(node --version)" = "v24.15.0"
+          test "$(bun --version)" = "1.3.14"
+          bun --no-env-file install --frozen-lockfile --ignore-scripts
+          printf '%s\n' 'PyYAML==6.0.3 --hash=sha256:0f29edc409a6392443abf94b9cf89ce99889a1dd5376d94316ae5145dfedd5d6' > "$RUNNER_TEMP/slop-python-requirements.txt"
+          python -m pip install --disable-pip-version-check --require-hashes --requirement "$RUNNER_TEMP/slop-python-requirements.txt"
+          git diff --exit-code
+      - name: Prepare official public validation inputs
+        run: |
+          bun --no-env-file run projects:sync
+          bun --no-env-file scripts/download-leaderboard.ts https://slop.cash/data/leaderboard.json "$RUNNER_TEMP/published-leaderboard.json"
+          bun --no-env-file scripts/prepare-pr-ledger.ts "$RUNNER_TEMP/published-leaderboard.json" public/data/leaderboard.json
+      - name: Install checked Dafny distribution
+        run: bun --no-env-file run lemmascript:setup
+      - name: Complete required root verification
+        run: bun --no-env-file run verify
+      - name: Required formatting check
+        if: success() || failure()
+        run: bun --no-env-file run format:check
+      - name: Record source and proof receipts
+        if: always()
+        run: |
+          git rev-parse HEAD
+          sha256sum backend/payments/handler.ts backend/payments/monthly.test.ts formal/models/rewards/monthly_source_conflict.qnt
+          git diff --exit-code -- backend/payments/handler.ts backend/payments/monthly.test.ts formal/inventory.json formal/lemmascript-inventory.json formal/models/rewards/monthly_source_conflict.qnt formal/state-catalog.json
+          git status --short
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          for (const dir of ['evidence/formal','evidence/lemmascript']) {
+            if (!fs.existsSync(dir)) continue;
+            for (const item of fs.readdirSync(dir,{recursive:true,withFileTypes:true})) {
+              if (item.isFile() && /(?:result|report).*\.json$/.test(item.name)) {
+                const file=item.parentPath+'/'+item.name;
+                console.log('PROOF_RECEIPT '+file+' '+fs.readFileSync(file,'utf8'));
+              }
+            }
+          }
+          NODE
+  formal:
+    if: github.repository == 'dnfl1999/slopdotcash'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fd401461fe0e6a9db6946baa163badbfabd64564
+          fetch-depth: 0
+          persist-credentials: false
+          submodules: false
+      - name: Bind verification to the candidate
+        run: |
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          uname -a
+          git rev-parse HEAD
+          git status --short
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "24.15.0"
+          package-manager-cache: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: "1.3.14"
+      - name: Install pinned dependencies
+        run: |
+          test "$(node --version)" = "v24.15.0"
+          test "$(bun --version)" = "1.3.14"
+          bun --no-env-file install --frozen-lockfile --ignore-scripts
+          printf '%s\n' 'PyYAML==6.0.3 --hash=sha256:0f29edc409a6392443abf94b9cf89ce99889a1dd5376d94316ae5145dfedd5d6' > "$RUNNER_TEMP/slop-python-requirements.txt"
+          python -m pip install --disable-pip-version-check --require-hashes --requirement "$RUNNER_TEMP/slop-python-requirements.txt"
+          git diff --exit-code
+      - name: Check actual translator and safety view
+        env:
+          SLOP_QUINT_TRANSLATOR_TEST: "1"
+        run: bun --no-env-file test ./scripts/quint-local-translator.test.ts ./scripts/quint-safety-view.test.ts
+      - name: Check all mapped models and scenarios
+        run: bun --no-env-file run formal:check
+      - name: Explore all finite state graphs
+        run: bun --no-env-file run formal:verify
+      - name: Record source and proof receipts
+        if: always()
+        run: |
+          git rev-parse HEAD
+          sha256sum backend/payments/handler.ts backend/payments/monthly.test.ts formal/models/rewards/monthly_source_conflict.qnt
+          git diff --exit-code -- backend/payments/handler.ts backend/payments/monthly.test.ts formal/inventory.json formal/lemmascript-inventory.json formal/models/rewards/monthly_source_conflict.qnt formal/state-catalog.json
+          git status --short
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          for (const dir of ['evidence/formal','evidence/lemmascript']) {
+            if (!fs.existsSync(dir)) continue;
+            for (const item of fs.readdirSync(dir,{recursive:true,withFileTypes:true})) {
+              if (item.isFile() && /(?:result|report).*\.json$/.test(item.name)) {
+                const file=item.parentPath+'/'+item.name;
+                console.log('PROOF_RECEIPT '+file+' '+fs.readFileSync(file,'utf8'));
+              }
+            }
+          }
+          NODE
+  browsers:
+    if: github.repository == 'dnfl1999/slopdotcash'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [preview, pages, registry]
+    env:
+      SLOP_E2E_LANE: ${{ matrix.lane }}
+      SLOP_E2E_WORKERS: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fd401461fe0e6a9db6946baa163badbfabd64564
+          fetch-depth: 0
+          persist-credentials: false
+          submodules: false
+      - name: Bind verification to the candidate
+        run: |
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          uname -a
+          git rev-parse HEAD
+          git status --short
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "24.15.0"
+          package-manager-cache: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: "1.3.14"
+      - name: Install pinned dependencies
+        run: |
+          test "$(node --version)" = "v24.15.0"
+          test "$(bun --version)" = "1.3.14"
+          bun --no-env-file install --frozen-lockfile --ignore-scripts
+          printf '%s\n' 'PyYAML==6.0.3 --hash=sha256:0f29edc409a6392443abf94b9cf89ce99889a1dd5376d94316ae5145dfedd5d6' > "$RUNNER_TEMP/slop-python-requirements.txt"
+          python -m pip install --disable-pip-version-check --require-hashes --requirement "$RUNNER_TEMP/slop-python-requirements.txt"
+          git diff --exit-code
+      - name: Prepare official public validation inputs
+        run: |
+          bun --no-env-file run projects:sync
+          bun --no-env-file scripts/download-leaderboard.ts https://slop.cash/data/leaderboard.json "$RUNNER_TEMP/published-leaderboard.json"
+          bun --no-env-file scripts/prepare-pr-ledger.ts "$RUNNER_TEMP/published-leaderboard.json" public/data/leaderboard.json
+      - name: Install pinned local browser
+        run: bun --no-env-file x playwright install --with-deps chromium
+      - name: Complete browser lane
+        run: bun --no-env-file run test:e2e
+      - name: Record source and proof receipts
+        if: always()
+        run: |
+          git rev-parse HEAD
+          sha256sum backend/payments/handler.ts backend/payments/monthly.test.ts formal/models/rewards/monthly_source_conflict.qnt
+          git diff --exit-code -- backend/payments/handler.ts backend/payments/monthly.test.ts formal/inventory.json formal/lemmascript-inventory.json formal/models/rewards/monthly_source_conflict.qnt formal/state-catalog.json
+          git status --short
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          for (const dir of ['evidence/formal','evidence/lemmascript']) {
+            if (!fs.existsSync(dir)) continue;
+            for (const item of fs.readdirSync(dir,{recursive:true,withFileTypes:true})) {
+              if (item.isFile() && /(?:result|report).*\.json$/.test(item.name)) {
+                const file=item.parentPath+'/'+item.name;
+                console.log('PROOF_RECEIPT '+file+' '+fs.readFileSync(file,'utf8'));
+              }
+            }
+          }
+          NODE
