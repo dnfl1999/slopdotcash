@@ -16,6 +16,8 @@ env:
   SLOP_POINTS_BOOTSTRAP: '1'
   VITE_SLOP_ENVIRONMENT: production
   WRANGLER_SEND_METRICS: 'false'
+  UPSTREAM_SHA: 6159e31374561d890194f357eba9530d5577ca96
+  ORIGINAL_PR_SHA: fd401461fe0e6a9db6946baa163badbfabd64564
 jobs:
   source:
     if: github.repository == 'dnfl1999/slopdotcash'
@@ -34,6 +36,9 @@ jobs:
         uname -a
         git rev-parse HEAD
         git status --short
+
+        git merge-base --is-ancestor "$UPSTREAM_SHA" HEAD
+        git merge-base --is-ancestor "$ORIGINAL_PR_SHA" HEAD
 
         printf "QUINT_HOME=%s/dnfl1999-quint\n" "$RUNNER_TEMP" >> "$GITHUB_ENV"
     - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -109,6 +114,9 @@ jobs:
         uname -a
         git rev-parse HEAD
         git status --short
+
+        git merge-base --is-ancestor "$UPSTREAM_SHA" HEAD
+        git merge-base --is-ancestor "$ORIGINAL_PR_SHA" HEAD
 
         printf "QUINT_HOME=%s/dnfl1999-quint\n" "$RUNNER_TEMP" >> "$GITHUB_ENV"
     - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -244,6 +252,9 @@ jobs:
         uname -a
         git rev-parse HEAD
         git status --short
+
+        git merge-base --is-ancestor "$UPSTREAM_SHA" HEAD
+        git merge-base --is-ancestor "$ORIGINAL_PR_SHA" HEAD
 
         printf "QUINT_HOME=%s/dnfl1999-quint\n" "$RUNNER_TEMP" >> "$GITHUB_ENV"
     - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
